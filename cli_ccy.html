@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Cifrado</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        #chat-area { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
+        .message { margin-bottom: 5px; cursor: pointer; }
+        #input-area input[type="text"] { width: 70%; padding: 8px; margin-right: 5px; }
+        #input-area button { padding: 8px 15px; }
+        #decrypted-area { margin-top: 10px; border: 1px solid #eee; padding: 10px; }
+        #decrypted-area p { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>Chat Cifrado</h1>
+
+    <div id="chat-area">
+        </div>
+
+    <div id="input-area">
+        <input type="text" id="nickname" placeholder="Tu alias">
+        <input type="text" id="message" placeholder="Escribe tu mensaje">
+        <button onclick="sendMessage()">Enviar</button>
+    </div>
+
+    <div id="decrypted-area">
+        <h2>Mensaje Descifrado</h2>
+        <p id="decrypted-text"></p>
+    </div>
+
+    <script>
+        const chatArea = document.getElementById('chat-area');
+        const messageInput = document.getElementById('message');
+        const nicknameInput = document.getElementById('nickname');
+        const decryptedText = document.getElementById('decrypted-text');
+        const serverUrl = 'http://127.0.0.1:5000'; // Ajusta si tu servidor REST está en otra dirección
+
+        async function fetchMessages() {
+            try {
+                const response = await fetch(`${serverUrl}/receive`);
+                if (response.ok) {
+                    const data = await response.json();
+                    chatArea.innerHTML = ''; // Limpiar la ventana de chat
+                    data.forEach(msg => {
+                        const messageDiv = document.createElement('div');
+                        messageDiv.classList.add('message');
+                        messageDiv.textContent = `${msg.sender}: ${msg.encrypted_content}`;
+                        messageDiv.onclick = () => decryptMessage(msg.encrypted_content);
+                        chatArea.appendChild(messageDiv);
+                    });
+                    // Mantener el scroll en la parte inferior
+                    chatArea.scrollTop = chatArea.scrollHeight;
+                } else {
+                    console.error('Error al obtener los mensajes:', response.status);
+                    alert("Error al obtener los mensajes");
+                }
+            } catch (error) {
+                console.error('Error de red:', error);
+                alert('Error de red');
+            }
+        }
+
+        async function sendMessage() {
+            const nickname = nicknameInput.value.trim();
+            const message = messageInput.value.trim();
+
+            if (!nickname) {
+                alert('Por favor, ingresa un alias.');
+                return;
+            }
+
+            if (message) {
+                try {
+                    const response = await fetch(`${serverUrl}/send`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ nickname: nickname, message: message })
+                    });
+
+                    if (response.ok) {
+                        messageInput.value = ''; // Limpiar el input después de enviar
+                        fetchMessages(); // Recargar los mensajes para ver el tuyo
+                    } else {
+                        console.error('Error al enviar el mensaje:', response.status);
+                        alert('Error al enviar el mensaje: '+response.status)
+                    }
+                } catch (error) {
+                    console.error('Error de red:', error);
+                    alert('Error de red: '+ error);
+                }
+            }
+        }
+
+        async function decryptMessage(encryptedMessage) {
+            try {
+                const response = await fetch(`${serverUrl}/decrypt`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ encrypted_message: encryptedMessage })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    decryptedText.textContent = data.decrypted_message;
+                } else {
+                    console.error('Error al decifrar el mensaje:', response.status);
+                    decryptedText.textContent = 'Error al decifrar el mensaje.';
+                }
+            } catch (error) {
+                console.error('Error de red:', error);
+                decryptedText.textContent = 'Error de conexión al decifrar.';
+            }
+        }
+
+        // Cargar los mensajes iniciales y establecer un intervalo para actualizar
+        fetchMessages();
+        setInterval(fetchMessages, 2000); // Actualizar cada 2 segundos
+    </script>
+</body>
+</html>
